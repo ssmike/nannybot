@@ -3,6 +3,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 from sqlalchemy import create_engine
 from contextlib import contextmanager
+import datetime
 
 Base = declarative_base()
 
@@ -12,6 +13,9 @@ class Chat(Base):
     period = Column(Integer)
     messages = relationship('Message', back_populates='chat')
     meals = relationship('Meal', back_populates='chat')
+
+    def period_time(self):
+        return datetime.timedelta(seconds=1) * self.period
 
 class Meal(Base):
     __tablename__ = 'meals'

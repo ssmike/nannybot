@@ -32,9 +32,13 @@ async def stats(update, context):
     maxtime = None
     sm = 0
     cnt = 0
+
+    period_sm = 0
     with make_session() as session:
         chat = session.query(Chat).filter(Chat.id == _id).one()
         for meal in chat.meals:
+            if meal.time + chat.period_time():
+                period_sm += meal.amount
             if maxtime is None or meal.time > maxtime:
                 maxtime = meal.time
                 if meal.time + datetime.timedelta(days=1) > now:
@@ -49,7 +53,7 @@ async def stats(update, context):
     minute = datetime.timedelta(minutes=1)
     minutes = int((delta - hour * hours) / minute)
 
-    await update.message.reply_text('За день кушали %d раз, суммарно выпили %dмл. Последний раз кушали %d часов %d минут назад' % (cnt, sm, hours, minutes))
+    await update.message.reply_text('За день кушали %d раз, суммарно выпили %dмл. За установленный период съели %dмл. Последний раз кушали %d часов %d минут назад' % (cnt, sm, period_sm, hours, minutes))
 
 
 app.add_handler(CommandHandler('stats', stats))
@@ -149,7 +153,7 @@ async def checker(_):
                 if meal.time + toclean < now:
                     meal.delete()
 
-            if maxtime is not None and maxtime + datetime.timedelta(seconds=1) * chat.period < now:
+            if maxtime is not None and maxtime + chat.period_time() < now:
                 if chat.id in _muted_chats and _muted_chats[chat.id] > now:
                     continue
                 delta = now - meal.time

@@ -108,7 +108,7 @@ async def checker(_):
                 if meal.time + toclean < now:
                     meal.delete()
 
-            if maxtime is not None and maxtime + datetime.timedelta(seconds=chat.period) < now:
+            if maxtime is not None and maxtime + datetime.timedelta(seconds=1) * chat.period < now:
                 if chat.id in _muted_chats and _muted_chats[chat.id] > now:
                     continue
                 delta = now - meal.time

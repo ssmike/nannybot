@@ -87,7 +87,11 @@ async def callback(update, context):
 
 app.add_handler(MessageHandler(None, callback))
 
+_muted_chats = {}
+
 log.debug('starting polling')
+
+
 async def checker(_):
     print('checking chats')
     notifies = {}
@@ -105,14 +109,17 @@ async def checker(_):
                     meal.delete()
 
             if maxtime is not None and maxtime + datetime.timedelta(seconds=chat.period) < now:
+                if chat.id in _muted_chats and _muted_chats[chat.id] > now:
+                    continue
                 delta = now - meal.time
                 ratio = delta / datetime.timedelta(seconds=chat.period)
                 notifies[chat.id] = 'Пора кормить ребенка! Прошло %f периодов кормления!' % (ratio,)
+                _muted_chats[chat.id] = now + datetime.timedelta(minutes=10)
 
     for key, value in notifies.items():
         print(key, value)
         await app.bot.send_message(key, value)
 
-app.job_queue.run_repeating(checker, 60 * 10)
+app.job_queue.run_repeating(checker, 60)
 
 app.run_polling()

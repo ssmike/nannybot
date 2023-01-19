@@ -16,9 +16,52 @@ start_engine()
 
 log = logging.getLogger(__name__)
 
+
+async def stop(update, context):
+    _id = update.message.chat.id
+    with make_session() as session:
+        session
+            .query(Chat)
+            .filter(Chat.id == _id)
+            .delete(synchronize_session='fetch')
+
+
+app.add_handler(CommandHandler('stop', stop))
+
+
+async def stats(update, context):
+    _id = update.message.chat.id
+    now = datetime.datetime.utcnow()
+    maxtime = None
+    sm = 0
+    cnt = 0
+    with make_session() as session:
+        chat = session.query(Chat).filter(Chat.id == _id).one()
+        for meal in chat.meals:
+            if maxtime is None or meal.time > maxtime:
+                maxtime = meal.time
+                if meal.time + datetime.timedelta(days=1) > now:
+                    sm += meal.amount
+                    cnt += 1
+
+    delta = now - maxtime
+
+    hour = datetime.timedelta(hours=1)
+    hours = int(delta / hour)
+
+    minute = datetime.timedelta(minutes=1)
+    minutes = int(delta - hour * hours) / minute)
+
+    update.message.reply_text('За день кушали %d раз, суммарно выпили %dмл. Последний раз кушали %d часов %d минут назад' % (cnt, sm, ))
+
+
+app.add_handler(CommandHandler('stats', start))
+
+
 def validate_period(period):
     h,m,s = period.split(':')
     return int(h) * 60**2 + int(m)*60 + int(s)
+
 
 async def start(update, context):
     try:
@@ -40,6 +83,7 @@ async def start(update, context):
 
 
 app.add_handler(CommandHandler('start', start))
+
 
 def validate_meal(content):
     try:

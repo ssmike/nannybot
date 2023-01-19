@@ -20,10 +20,7 @@ log = logging.getLogger(__name__)
 async def stop(update, context):
     _id = update.message.chat.id
     with make_session() as session:
-        session
-            .query(Chat)
-            .filter(Chat.id == _id)
-            .delete(synchronize_session='fetch')
+        session.query(Chat).filter(Chat.id == _id).delete(synchronize_session='fetch')
 
 
 app.add_handler(CommandHandler('stop', stop))
@@ -50,12 +47,12 @@ async def stats(update, context):
     hours = int(delta / hour)
 
     minute = datetime.timedelta(minutes=1)
-    minutes = int(delta - hour * hours) / minute)
+    minutes = int((delta - hour * hours) / minute)
 
-    update.message.reply_text('За день кушали %d раз, суммарно выпили %dмл. Последний раз кушали %d часов %d минут назад' % (cnt, sm, ))
+    update.message.reply_text('За день кушали %d раз, суммарно выпили %dмл. Последний раз кушали %d часов %d минут назад' % (cnt, sm, hours, minutes))
 
 
-app.add_handler(CommandHandler('stats', start))
+app.add_handler(CommandHandler('stats', stats))
 
 
 def validate_period(period):

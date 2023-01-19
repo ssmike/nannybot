@@ -95,7 +95,7 @@ log.debug('starting polling')
 async def checker(_):
     print('checking chats')
     notifies = {}
-    now = datetime.datetime.now()
+    now = datetime.datetime.utcnow()
     toclean = datetime.timedelta(days=3)
     with make_session() as session:
         chats = session.query(Chat)

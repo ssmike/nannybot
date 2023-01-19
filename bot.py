@@ -145,21 +145,24 @@ async def checker(_):
     with make_session() as session:
         chats = session.query(Chat)
         for chat in chats:
-            print(chat)
-            maxtime = None
-            for meal in chat.meals:
-                if maxtime is None or meal.time > maxtime:
-                    maxtime = meal.time
-                if meal.time + toclean < now:
-                    meal.delete()
+            try:
+                print(chat)
+                maxtime = None
+                for meal in chat.meals:
+                    if maxtime is None or meal.time > maxtime:
+                        maxtime = meal.time
+                    if meal.time + toclean < now:
+                        meal.delete()
 
-            if maxtime is not None and maxtime + chat.period_time() < now:
-                if chat.id in _muted_chats and _muted_chats[chat.id] > now:
-                    continue
-                delta = now - meal.time
-                ratio = delta / datetime.timedelta(seconds=chat.period)
-                notifies[chat.id] = 'Пора кормить ребенка! Прошло %f периодов кормления!' % (ratio,)
-                _muted_chats[chat.id] = now + datetime.timedelta(minutes=10)
+                if maxtime is not None and maxtime + chat.period_time() < now:
+                    if chat.id in _muted_chats and _muted_chats[chat.id] > now:
+                        continue
+                    delta = now - meal.time
+                    ratio = int(delta / datetime.timedelta(seconds=chat.period))
+                    notifies[chat.id] = 'Пора кормить ребенка! Прошло больше %d периодов кормления!' % (ratio,)
+                    _muted_chats[chat.id] = now + datetime.timedelta(minutes=10)
+            except Exception as e:
+                print(e)
 
     for key, value in notifies.items():
         print(key, value)

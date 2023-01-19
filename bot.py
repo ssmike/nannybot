@@ -49,7 +49,7 @@ async def stats(update, context):
     minute = datetime.timedelta(minutes=1)
     minutes = int((delta - hour * hours) / minute)
 
-    update.message.reply_text('За день кушали %d раз, суммарно выпили %dмл. Последний раз кушали %d часов %d минут назад' % (cnt, sm, hours, minutes))
+    await update.message.reply_text('За день кушали %d раз, суммарно выпили %dмл. Последний раз кушали %d часов %d минут назад' % (cnt, sm, hours, minutes))
 
 
 app.add_handler(CommandHandler('stats', stats))

@@ -37,7 +37,7 @@ async def stats(update, context):
     with make_session() as session:
         chat = session.query(Chat).filter(Chat.id == _id).one()
         for meal in chat.meals:
-            if meal.time + chat.period_time():
+            if meal.time + chat.period_time() > now:
                 period_sm += meal.amount
             if maxtime is None or meal.time > maxtime:
                 maxtime = meal.time

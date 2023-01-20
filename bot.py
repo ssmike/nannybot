@@ -39,11 +39,11 @@ async def stats(update, context):
         for meal in chat.meals:
             if meal.time + chat.period_time() > now:
                 period_sm += meal.amount
+            if meal.time + datetime.timedelta(days=1) > now:
+                sm += meal.amount
+                cnt += 1
             if maxtime is None or meal.time > maxtime:
                 maxtime = meal.time
-                if meal.time + datetime.timedelta(days=1) > now:
-                    sm += meal.amount
-                    cnt += 1
 
     delta = now - maxtime
 

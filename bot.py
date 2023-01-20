@@ -1,11 +1,8 @@
-import asyncio
-import time
 import os
 import logging
 import datetime
 from base import make_session, Message, Chat, Meal, start_engine
 from telegram.ext import Application, MessageHandler, CommandHandler
-from threading import Thread
 
 
 app = Application.builder().token(os.environ['TELEGRAM_TOKEN']).build()

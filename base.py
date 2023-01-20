@@ -1,4 +1,4 @@
-from sqlalchemy import Column, ForeignKey, Integer, String, Table, DateTime
+from sqlalchemy import Column, ForeignKey, Integer, String, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 from sqlalchemy import create_engine
@@ -6,6 +6,7 @@ from contextlib import contextmanager
 import datetime
 
 Base = declarative_base()
+
 
 class Chat(Base):
     __tablename__ = 'chats'
@@ -17,6 +18,7 @@ class Chat(Base):
     def period_time(self):
         return datetime.timedelta(seconds=1) * self.period
 
+
 class Meal(Base):
     __tablename__ = 'meals'
     id = Column(Integer, primary_key=True, unique=True)
@@ -24,6 +26,7 @@ class Meal(Base):
     time = Column(DateTime)
     chat_id = Column(Integer, ForeignKey('chats.id'))
     chat = relationship(Chat, back_populates='meals')
+
 
 class Message(Base):
     __tablename__ = 'messages'
@@ -33,20 +36,25 @@ class Message(Base):
     time = Column(DateTime)
     chat = relationship(Chat, back_populates='messages')
 
+
 Session = None
+Engine = None
+
 
 def start_engine():
     global Session
-    engine = create_engine('sqlite:///chats.db', connect_args={'check_same_thread': False})
-    Base.metadata.create_all(engine)
-    Base.metadata.bind = engine
+    global Engine
+    Engine = create_engine('sqlite:///chats.db', connect_args={'check_same_thread': False})
+    Base.metadata.create_all(Engine)
+    Base.metadata.bind = Engine
 
-    Session = sessionmaker(bind=engine)
+    Session = sessionmaker(bind=Engine)
 
 
 def drop_all():
-    Base.metadata.drop_all(bind=engine)
-    Base.metadata.create_all(bind=engine)
+    Base.metadata.drop_all(bind=Engine)
+    Base.metadata.create_all(bind=Engine)
+
 
 def drop(tables):
     for name in tables:

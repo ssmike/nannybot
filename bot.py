@@ -26,6 +26,21 @@ async def stop(update, context):
 app.add_handler(CommandHandler('stop', stop))
 
 
+async def report(update, context):
+    _id = update.message.chat.id
+    now = datetime.datetime.utcnow()
+    result = ''
+    with make_session() as session:
+        chat = session.query(Chat).filter(Chat.id == _id).one()
+        for meal in chat.meals:
+            if meal.time + datetime.timedelta(days=1) > now:
+                result += '%d in %s\n' % (meal.amount, str(meal.time))
+    await update.message.reply_text(result)
+
+
+app.add_handler(CommandHandler('report', report))
+
+
 async def stats(update, context):
     _id = update.message.chat.id
     now = datetime.datetime.utcnow()

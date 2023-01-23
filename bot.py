@@ -1,4 +1,5 @@
 import os
+import sys
 import logging
 import datetime
 from base import make_session, Message, Chat, Meal, start_engine
@@ -150,7 +151,7 @@ log.debug('starting polling')
 
 
 async def checker(_):
-    print('checking chats')
+    print('checking chats', file=sys.stderr)
     notifies = {}
     now = datetime.datetime.utcnow()
     toclean = datetime.timedelta(days=3)
@@ -158,13 +159,13 @@ async def checker(_):
         chats = session.query(Chat)
         for chat in chats:
             try:
-                print(chat)
+                print(chat, file=sys.stderr)
                 maxtime = None
                 for meal in chat.meals:
                     if maxtime is None or meal.time > maxtime:
                         maxtime = meal.time
                     if meal.time + toclean < now:
-                        meal.delete()
+                        session.delete(meal)
 
                 if maxtime is not None and maxtime + chat.period_time() < now:
                     if chat.id in _muted_chats and _muted_chats[chat.id] > now:
@@ -174,10 +175,10 @@ async def checker(_):
                     notifies[chat.id] = 'Пора кормить ребенка! Прошло больше %d периодов кормления!' % (ratio,)
                     _muted_chats[chat.id] = now + datetime.timedelta(minutes=10)
             except Exception as e:
-                print(e)
+                print(e, file=sys.stderr)
 
     for key, value in notifies.items():
-        print(key, value)
+        print(key, value, file=sys.stderr)
         await app.bot.send_message(key, value)
 
 app.job_queue.run_repeating(checker, 60)

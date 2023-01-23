@@ -154,7 +154,6 @@ async def checker(_):
     print('checking chats', file=sys.stderr)
     notifies = {}
     now = datetime.datetime.utcnow()
-    toclean = datetime.timedelta(days=3)
     with make_session() as session:
         chats = session.query(Chat)
         for chat in chats:
@@ -164,8 +163,6 @@ async def checker(_):
                 for meal in chat.meals:
                     if maxtime is None or meal.time > maxtime:
                         maxtime = meal.time
-                    if meal.time + toclean < now:
-                        session.delete(meal)
 
                 if maxtime is not None and maxtime + chat.period_time() < now:
                     if chat.id in _muted_chats and _muted_chats[chat.id] > now:

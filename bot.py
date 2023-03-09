@@ -32,7 +32,7 @@ async def report(update, context):
         chat = session.query(Chat).filter(Chat.id == _id).one()
         for meal in chat.meals:
             if meal.time + datetime.timedelta(days=1) > now:
-                result += '%d in %s\n' % (meal.amount, str(meal.time))
+                result += '%d %s\n' % (meal.amount, str(meal.time))
     await update.message.reply_text(result)
 
 

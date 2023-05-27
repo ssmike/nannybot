@@ -89,6 +89,7 @@ def validate_time_with_year(content):
     return datetime.datetime.fromtimestamp(time.mktime(conv), tz=datetime.timezone.utc)
 
 
+@silent_errors
 def validate_time(content):
     result = validate_time_with_year(content)
     if result is not None:

@@ -75,22 +75,24 @@ app.add_handler(CommandHandler('stats', stats))
 
 
 async def start(update, context):
-    try:
-        _, period = update.message.text.split(' ')
-        period = validate_period(period)
+    args = update.message.text.split(' ')[1:]
+    if len(args) == 0:
+        period = None
+    elif len(args) == 1 :
+        period = validate_period(args[0])
 
-        with make_session() as session:
-            _id = update.message.chat.id
-            existing_users = session.query(Chat).filter(Chat.id == _id).all()
-            if len(existing_users) > 0:
-                existing_users[0].period = period
-            else:
-                session.add(Chat(id=_id, period=period))
+    with make_session() as session:
+        _id = update.message.chat.id
+        existing_users = session.query(Chat).filter(Chat.id == _id).all()
+        if len(existing_users) > 0:
+            existing_users[0].period = period
+        else:
+            session.add(Chat(id=_id, period=period, state=ChatState().store()))
 
+    if period is not None:
         await update.message.reply_text('записала период кормления в %s' % (format_period(period),))
-    except Exception as e:
-        print(e)
-        await update.message.reply_text('error: command should be /start h:m:s')
+    else:
+        await update.message.reply_text('отключила кормления в этом чате')
 
 
 app.add_handler(CommandHandler('start', start))
@@ -233,6 +235,7 @@ async def reset(update, content):
     with make_session() as session:
         chat = query_chat(session, _id)
         chat.state = ChatState().store()
+    await update.message.reply_text('готово!')
 
 
 app.add_handler(CommandHandler('reset', reset))
@@ -247,6 +250,10 @@ async def callback(update, context):
     _id = update.message.chat.id
     _text = update.message.text
     _date = update.message.date
+
+    if _text == '.':
+        await reset(update, context)
+        return
     
     meal_date = _date
     meal_amount = validate_meal(_text)
@@ -300,22 +307,23 @@ async def checker(_):
     with make_session() as session:
         chats = session.query(Chat)
         for chat in chats:
-            try:
-                print(chat, file=sys.stderr)
-                maxtime = None
-                for meal in chat.meals:
-                    if maxtime is None or meal.time > maxtime:
-                        maxtime = meal.time
+            if chat.period is not None:
+                try:
+                    print(chat, file=sys.stderr)
+                    maxtime = None
+                    for meal in chat.meals:
+                        if maxtime is None or meal.time > maxtime:
+                            maxtime = meal.time
 
-                if maxtime is not None and maxtime + chat.period_time() < now:
-                    if chat.id in _muted_chats and _muted_chats[chat.id] > now:
-                        continue
-                    delta = now - meal.time
-                    ratio = int(delta / datetime.timedelta(seconds=chat.period))
-                    notifies[chat.id] = 'Пора кормить ребенка! Прошло больше %d периодов кормления!' % (ratio,)
-                    _muted_chats[chat.id] = now + datetime.timedelta(minutes=10)
-            except Exception as e:
-                print(e, file=sys.stderr)
+                    if maxtime is not None and maxtime + chat.period_time() < now:
+                        if chat.id in _muted_chats and _muted_chats[chat.id] > now:
+                            continue
+                        delta = now - meal.time
+                        ratio = int(delta / datetime.timedelta(seconds=chat.period))
+                        notifies[chat.id] = 'Пора кормить ребенка! Прошло больше %d периодов кормления!' % (ratio,)
+                        _muted_chats[chat.id] = now + datetime.timedelta(minutes=10)
+                except Exception as e:
+                    print(e, file=sys.stderr)
 
     for key, value in notifies.items():
         print(key, value, file=sys.stderr)

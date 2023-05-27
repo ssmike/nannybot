@@ -178,11 +178,11 @@ async def topic(update, context):
     with make_session() as session:
         chat = query_chat(session, update.message.chat.id)
 
-        specials = [InlineKeyboardButton('новая тема', callback_data=_topic_callback_data('new'))]
+        specials = [[InlineKeyboardButton('новая тема', callback_data=_topic_callback_data('new'))]]
 
         keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(topic.name,
-                                                               callback_data=_topic_callback_data('add', topic.id))
-                                          for topic in chat.topics] + specials])
+                                                               callback_data=_topic_callback_data('add', topic.id))]
+                                          for topic in chat.topics] + specials)
         await update.message.reply_text('в какую тему хотите написать?', reply_markup=keyboard)
 
 
@@ -194,8 +194,8 @@ async def close_topic(update, context):
         chat = query_chat(session, update.message.chat.id)
 
         keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(topic.name,
-                                                       callback_data=_topic_callback_data('close', topic.id))
-                                  for topic in chat.topics]])
+                                                       callback_data=_topic_callback_data('close', topic.id))]
+                                  for topic in chat.topics])
 
         await update.message.reply_text('какую тему хотите закрыть?', reply_markup=keyboard)
 
@@ -208,8 +208,8 @@ async def forward_topic(update, context):
         chat = query_chat(session, update.message.chat.id)
 
         keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(topic.name,
-                                                       callback_data=_topic_callback_data('forward', topic.id))
-                                  for topic in chat.topics]])
+                                                       callback_data=_topic_callback_data('forward', topic.id))]
+                                  for topic in chat.topics])
 
         await update.message.reply_text('какую тему хотите посмотреть?', reply_markup=keyboard)
 

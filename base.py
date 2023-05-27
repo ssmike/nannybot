@@ -9,14 +9,25 @@ Base = declarative_base()
 
 
 class Chat(Base):
-    __tablename__ = 'chats'
+    __tablename__ = 'chats_v1'
     id = Column(Integer, primary_key=True, unique=True)
     period = Column(Integer)
-    messages = relationship('Message', back_populates='chat')
+    state = Column(String)
     meals = relationship('Meal', back_populates='chat')
+    topics = relationship('Topic', back_populates='chat')
+    messages = relationship('Message', back_populates='chat')
 
     def period_time(self):
         return datetime.timedelta(seconds=1) * self.period
+
+
+class Topic(Base):
+    __tablename__ = 'topics'
+    id = Column(String, primary_key=True, unique=True)
+    chat_id = Column(Integer, ForeignKey('chats_v1.id'))
+    name = Column(String)
+    chat = relationship(Chat, back_populates='topics')
+    messages = relationship('Message', back_populates='topic')
 
 
 class Meal(Base):
@@ -24,16 +35,21 @@ class Meal(Base):
     id = Column(Integer, primary_key=True, unique=True)
     amount = Column(Integer)
     time = Column(DateTime)
-    chat_id = Column(Integer, ForeignKey('chats.id'))
+    chat_id = Column(Integer, ForeignKey('chats_v1.id'))
     chat = relationship(Chat, back_populates='meals')
 
 
 class Message(Base):
-    __tablename__ = 'messages'
+    __tablename__ = 'messages_v1'
     id = Column(Integer, primary_key=True, unique=True)
-    chat_id = Column(Integer, ForeignKey('chats.id'))
+    telegram_id = Column(Integer)
+    chat_id = Column(Integer, ForeignKey('chats_v1.id'))
+    topic_id = Column(String, ForeignKey('topics.id'))
+
     content = Column(String)
     time = Column(DateTime)
+
+    topic = relationship(Topic, back_populates='messages')
     chat = relationship(Chat, back_populates='messages')
 
 

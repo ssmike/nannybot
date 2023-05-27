@@ -2,8 +2,10 @@ import os
 import sys
 import logging
 import datetime
-from base import make_session, Message, Chat, Meal, start_engine
-from telegram.ext import Application, MessageHandler, CommandHandler
+from base import make_session, Message, Chat, Meal, Topic, start_engine
+from telegram import InlineKeyboardMarkup, InlineKeyboardButton
+from telegram.ext import Application, MessageHandler, CommandHandler, CallbackQueryHandler
+from validators import validate_period, validate_time_and_meal, validate_meal, format_period, format_time, validate_time
 
 
 app = Application.builder().token(os.environ['TELEGRAM_TOKEN']).build()
@@ -72,11 +74,6 @@ async def stats(update, context):
 app.add_handler(CommandHandler('stats', stats))
 
 
-def validate_period(period):
-    h,m,s = period.split(':')
-    return int(h) * 60**2 + int(m)*60 + int(s)
-
-
 async def start(update, context):
     try:
         _, period = update.message.text.split(' ')
@@ -90,7 +87,7 @@ async def start(update, context):
             else:
                 session.add(Chat(id=_id, period=period))
 
-        await update.message.reply_text('записала период кормления в %s секунд' % (period,))
+        await update.message.reply_text('записала период кормления в %s' % (format_period(period),))
     except Exception as e:
         print(e)
         await update.message.reply_text('error: command should be /start h:m:s')
@@ -99,29 +96,151 @@ async def start(update, context):
 app.add_handler(CommandHandler('start', start))
 
 
-def validate_meal(content):
-    try:
-        return int(content)
-    except Exception as e:
-        return None
+class ChatState:
+    INITIAL = 0
+    TOPIC_ADD = 1
 
-
-def validate_time_and_meal(now, content):
-    try:
-        tp, amount = content.split(' ')
-        amount = int(amount)
-    
-        if tp.endswith('h'):
-            tp = now + datetime.timedelta(hours=int(tp[:-1]))
-        elif tp.endswith('m'):
-            tp = now + datetime.timedelta(minutes=int(tp[:-1]))
+    def __init__(self, s=''):
+        if s == '': # initial state
+            self.state = ChatState.INITIAL
+            self.topic = None
         else:
-            return None, None
+            args = s.split(' ', 1)
+            self.state = int(args[0])
+            self.topic = args[1] if len(args) > 1 else None
 
-        return tp, amount
-    except Exception as e:
-        print(e)
-        return None, None
+    def store(self):
+        return str(self)
+
+    def __str__(self):
+        return str(self.state) + ('' if self.topic is None else ' ' + self.topic)
+
+    def adding_meals(self):
+        return self.state == ChatState.INITIAL
+
+    def set_adding_meals(self):
+        self.state = ChatState.INITIAL
+        return self
+
+    def new_topic(self):
+        return self.topic is None
+
+    def adding_topic(self):
+        return self.state == ChatState.TOPIC_ADD
+
+    def set_adding_topic(self, topic=None):
+        self.topic = topic
+        self.state = ChatState.TOPIC_ADD
+        return self
+
+
+
+def _topic_callback_data(action, content=''):
+    return 'topic ' + action + ' ' + content
+
+
+def _parse_topic_callback_data(text):
+    text = text[len('topic '):]
+    return text.split(' ', 1)
+
+
+async def topic_callback(update, context):
+    with make_session() as session:
+        message = update.callback_query.message
+        chat = query_chat(session, message.chat.id)
+        action, content = _parse_topic_callback_data(update.callback_query.data)
+        if action == 'new':
+            chat.state = ChatState().set_adding_topic().store()
+            await message.reply_text('что хотите записать?')
+        elif action == 'close':
+            for topic in chat.topics:
+                if topic.id == content:
+                    chat.topics.remove(topic)
+                    await app.bot.send_message(chat.id, 'закрыла')
+        elif action == 'add':
+            chat.state = ChatState().set_adding_topic(content).store()
+            await message.reply_text('записываю')
+        elif action == 'forward':
+            messages = session.query(Message).filter(Message.topic_id == content).filter(Message.chat_id == message.chat.id).all()
+            cur_id = chat.id
+            for message in messages:
+                await app.bot.forward_message(chat.id, message.chat.id, message.telegram_id)
+        else:
+            chat.state = ChatState().store()
+
+
+app.add_handler(CallbackQueryHandler(topic_callback, '^topic.*'))
+
+
+async def topic(update, context):
+    with make_session() as session:
+        chat = query_chat(session, update.message.chat.id)
+
+        specials = [InlineKeyboardButton('новая тема', callback_data=_topic_callback_data('new'))]
+
+        keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(topic.name,
+                                                               callback_data=_topic_callback_data('add', topic.id))
+                                          for topic in chat.topics] + specials])
+        await update.message.reply_text('в какую тему хотите написать?', reply_markup=keyboard)
+
+
+app.add_handler(CommandHandler('topic', topic))
+
+
+async def close_topic(update, context):
+    with make_session() as session:
+        chat = query_chat(session, update.message.chat.id)
+
+        keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(topic.name,
+                                                       callback_data=_topic_callback_data('close', topic.id))
+                                  for topic in chat.topics]])
+
+        await update.message.reply_text('какую тему хотите закрыть?', reply_markup=keyboard)
+
+
+app.add_handler(CommandHandler('close', close_topic))
+
+
+async def forward_topic(update, context):
+    with make_session() as session:
+        chat = query_chat(session, update.message.chat.id)
+
+        keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(topic.name,
+                                                       callback_data=_topic_callback_data('forward', topic.id))
+                                  for topic in chat.topics]])
+
+        await update.message.reply_text('какую тему хотите посмотреть?', reply_markup=keyboard)
+
+
+app.add_handler(CommandHandler('forward', forward_topic))
+
+
+class ChatNotFound(Exception):
+    pass
+
+
+def query_chat(session, _id):
+    chats = session.query(Chat).filter(Chat.id == _id).all()
+    if len(chats) > 0:
+        return chats[0]
+    else:
+        app.bot.send_message(_id, 'незарегистрированный чат #%d' % (_id,))
+        raise ChatNotFound()
+
+
+async def reset(update, content):
+    _id = update.message.chat.id
+    with make_session() as session:
+        chat = query_chat(session, _id)
+        chat.state = ChatState().store()
+
+
+app.add_handler(CommandHandler('reset', reset))
+
+
+def new_topic_id():
+    import uuid
+    return str(uuid.uuid4())
 
 
 async def callback(update, context):
@@ -135,13 +254,37 @@ async def callback(update, context):
     if meal_amount is None:
         meal_date, meal_amount = validate_time_and_meal(meal_date, _text)
 
-    with make_session() as session:
-        session.add(Message(chat_id=_id, content=_text, time=_date))
-        if meal_amount is not None:
-            session.add(Meal(chat_id=_id, amount=meal_amount, time=meal_date))
+    _period = validate_period(_text)
+    _time = validate_time(_text)
 
-    if meal_amount is not None:
-        await update.message.reply_text('записала кормление %d мл %s' % (meal_amount, meal_date))
+    _notify = None
+
+    with make_session() as session:
+        chat = query_chat(session, _id)
+
+        state = ChatState(chat.state)
+        print('cur state = ', state)
+        if state.adding_meals():
+            if meal_amount is not None:
+                session.add(Meal(chat_id=_id, amount=meal_amount, time=meal_date))
+            _notify = 'записала кормление %d мл %s' % (meal_amount, format_time(meal_date))
+        elif state.adding_topic():
+            print('adding topic')
+            if state.new_topic():
+                print('adding new topic')
+                _topic_id = new_topic_id()
+                
+                session.add(Topic(id=_topic_id, chat_id=_id, name=_text))
+                print(_topic_id)
+                chat.state = state.set_adding_topic(_topic_id).store()
+                print('state', state)
+                _notify = 'записываю'
+            else:
+                print('topic id', str(state.topic), type(state.topic))
+                session.add(Message(telegram_id=update.message.message_id, chat_id=_id, topic_id=state.topic, content=_text, time=_date))
+
+    if _notify is not None:
+        await update.message.reply_text(_notify)
 
 app.add_handler(MessageHandler(None, callback))
 

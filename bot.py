@@ -74,6 +74,29 @@ async def stats(update, context):
 app.add_handler(CommandHandler('stats', stats))
 
 
+async def stats_month(update, context):
+    _id = update.message.chat.id
+    now = datetime.datetime.utcnow()
+    maxtime = None
+    sm = 0
+    cnt = 0
+
+    period_sm = 0
+    with make_session() as session:
+        chat = session.query(Chat).filter(Chat.id == _id).one()
+        result = [0]*31
+        for meal in chat.meals:
+            day = int((now - meal.time) / datetime.timedelta(days=1))
+            if day < 31:
+                result[day] += meal.amount
+
+    for res in result:
+        await update.message.reply_text('%d мл' % (res))
+
+
+app.add_handler(CommandHandler('stats_month', stats_month))
+
+
 async def start(update, context):
     args = update.message.text.split(' ')[1:]
     if len(args) == 0:

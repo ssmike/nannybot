@@ -89,9 +89,11 @@ async def stats_month(update, context):
             day = int((now - meal.time) / datetime.timedelta(days=1))
             if day < 31:
                 result[day] += meal.amount
-
-    for res in result:
-        await update.message.reply_text('%d мл' % (res))
+                
+    resstr = ""
+    for res in result[::-1]:
+        resstr += str(res) + "\n"
+    await update.message.reply_text(resstr)
 
 
 app.add_handler(CommandHandler('stats_month', stats_month))

@@ -240,6 +240,7 @@ async def forward_topic(update, context):
 
 
 app.add_handler(CommandHandler('forward', forward_topic))
+app.add_handler(CommandHandler('view', forward_topic))
 
 
 class ChatNotFound(Exception):

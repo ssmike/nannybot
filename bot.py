@@ -74,6 +74,16 @@ async def stats(update, context):
 app.add_handler(CommandHandler('stats', stats))
 
 
+async def night(update, context):
+    now = datetime.datetime.utcnow()
+    _muted_chats[update.message.chat.id] = now + datetime.timedelta(hours=12)
+
+    await update.message.reply_text('Режим тишины включен на 12 часов')
+
+
+app.add_handler(CommandHandler('night', night))
+
+
 async def stats_month(update, context):
     _id = update.message.chat.id
     now = datetime.datetime.utcnow()

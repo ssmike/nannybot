@@ -311,6 +311,9 @@ async def notify(update, context):
         else:
             message = args[1]
 
+        if message == "":
+            return
+
         session.add(Notify(chat_id=update.message.chat.id, message=message, period=period, last_time=datetime.datetime.utcnow() + delta))
         _reply_message = 'Добавила уведомление с сообщением "%s" раз в %s' % (message, format_period(period))
 
@@ -438,8 +441,9 @@ async def checker(_):
 
     for key, value in notifies.items():
         for msg in value:
-            print(key, msg, file=sys.stderr)
-            await app.bot.send_message(key, msg)
+            if msg != "":
+                print(key, msg, file=sys.stderr)
+                await app.bot.send_message(key, msg)
 
     if _notified:
         print('notified ids', _notified, file=sys.stderr)

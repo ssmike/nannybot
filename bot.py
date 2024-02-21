@@ -210,6 +210,12 @@ async def topic_callback(update, context):
 
 app.add_handler(CallbackQueryHandler(topic_callback, '^topic.*'))
 
+def check_markup_label(name):
+    if name is None:
+        return False
+    if name == "":
+        return False
+    return True
 
 async def topic(update, context):
     with make_session() as session:
@@ -219,7 +225,7 @@ async def topic(update, context):
 
         keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(topic.name,
                                                                callback_data=_topic_callback_data('add', topic.id))]
-                                          for topic in chat.topics if len(topic.name) > 0] + specials)
+                                          for topic in chat.topics if check_markup_label(topic.name)] + specials)
         await update.message.reply_text('в какую тему хотите написать?', reply_markup=keyboard)
 
 
@@ -232,7 +238,7 @@ async def close_topic(update, context):
 
         keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(topic.name,
                                                        callback_data=_topic_callback_data('close', topic.id))]
-                                  for topic in chat.topics if len(topic.name) > 0])
+                                  for topic in chat.topics if check_markup_label(topic.name)])
 
         await update.message.reply_text('какую тему хотите закрыть?', reply_markup=keyboard)
 
@@ -246,7 +252,7 @@ async def forward_topic(update, context):
 
         keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(topic.name,
                                                        callback_data=_topic_callback_data('forward', topic.id))]
-                                  for topic in chat.topics if len(topic.name) > 0])
+                                  for topic in chat.topics if check_markup_label(topic.name)])
 
         await update.message.reply_text('какую тему хотите посмотреть?', reply_markup=keyboard)
 
@@ -277,7 +283,7 @@ async def del_notify(update, context):
         chat = query_chat(session, update.message.chat.id)
         keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(notify.message,
                                                        callback_data=_notify_callback_data(notify.id))]
-                                  for notify in chat.notifies if len(notify.message) > 0])
+                                  for notify in chat.notifies if check_markup_label(notify.message)])
 
         await update.message.reply_text('удалить уведомление', reply_markup=keyboard)
 

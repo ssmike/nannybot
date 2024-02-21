@@ -56,17 +56,21 @@ def format_period(seconds):
         result += ' %d секунд' % (seconds,)
     return result.strip()
 
+@silent_errors
+def validate_delta(tp):
+    if tp.endswith('h'):
+        return datetime.timedelta(hours=int(tp[:-1]))
+    elif tp.endswith('m'):
+        return datetime.timedelta(minutes=int(tp[:-1]))
+    else:
+        return None
+
 def validate_time_and_meal(now, content):
     try:
         tp, amount = content.split(' ')
         amount = int(amount)
     
-        if tp.endswith('h'):
-            tp = now + datetime.timedelta(hours=int(tp[:-1]))
-        elif tp.endswith('m'):
-            tp = now + datetime.timedelta(minutes=int(tp[:-1]))
-        else:
-            return None, None
+        tp = now + validate_delta(tp)
 
         return tp, amount
     except Exception as e:
@@ -99,3 +103,5 @@ def validate_time(content):
 
 assert validate_time('Feb 8') is not None
 assert validate_time('Apr 8') is not None
+assert validate_delta('-1h') is not None
+assert validate_delta('-1m') is not None

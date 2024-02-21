@@ -7,6 +7,19 @@ import datetime
 
 Base = declarative_base()
 
+class Notify(Base):
+    __tablename__ = 'notify'
+    id = Column(Integer, primary_key=True, unique=True)
+    chat_id = Column(Integer, ForeignKey('chats_v1.id'))
+    message = Column(String)
+    period = Column(Integer)
+    last_time = Column(DateTime)
+
+    chat = relationship('Chat', back_populates='notifies')
+
+    def period_time(self):
+        return datetime.timedelta(seconds=1) * self.period
+
 
 class Chat(Base):
     __tablename__ = 'chats_v1'
@@ -16,6 +29,7 @@ class Chat(Base):
     meals = relationship('Meal', back_populates='chat')
     topics = relationship('Topic', back_populates='chat')
     messages = relationship('Message', back_populates='chat')
+    notifies = relationship('Notify', back_populates='chat')
 
     def period_time(self):
         return datetime.timedelta(seconds=1) * self.period

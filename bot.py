@@ -2,10 +2,12 @@ import os
 import sys
 import logging
 import datetime
-from base import make_session, Message, Chat, Meal, Topic, start_engine
+from collections import defaultdict
+from base import make_session, Message, Chat, Meal, Topic, start_engine, Notify
 from telegram import InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import Application, MessageHandler, CommandHandler, CallbackQueryHandler
-from validators import validate_period, validate_time_and_meal, validate_meal, format_period, format_time, validate_time
+from validators import validate_period, validate_time_and_meal, validate_meal, format_period, format_time, validate_time, validate_delta
+import sqlalchemy
 
 
 app = Application.builder().token(os.environ['TELEGRAM_TOKEN']).build()
@@ -217,7 +219,7 @@ async def topic(update, context):
 
         keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(topic.name,
                                                                callback_data=_topic_callback_data('add', topic.id))]
-                                          for topic in chat.topics] + specials)
+                                          for topic in chat.topics if len(topic.name) > 0] + specials)
         await update.message.reply_text('в какую тему хотите написать?', reply_markup=keyboard)
 
 
@@ -230,7 +232,7 @@ async def close_topic(update, context):
 
         keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(topic.name,
                                                        callback_data=_topic_callback_data('close', topic.id))]
-                                  for topic in chat.topics])
+                                  for topic in chat.topics if len(topic.name) > 0])
 
         await update.message.reply_text('какую тему хотите закрыть?', reply_markup=keyboard)
 
@@ -244,13 +246,73 @@ async def forward_topic(update, context):
 
         keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(topic.name,
                                                        callback_data=_topic_callback_data('forward', topic.id))]
-                                  for topic in chat.topics])
+                                  for topic in chat.topics if len(topic.name) > 0])
 
         await update.message.reply_text('какую тему хотите посмотреть?', reply_markup=keyboard)
 
 
 app.add_handler(CommandHandler('forward', forward_topic))
 app.add_handler(CommandHandler('view', forward_topic))
+
+def _notify_callback_data(_id):
+    return 'notify ' + str(_id)
+
+
+def _parse_notify_callback_data(text):
+    return int(text[len('notify '):])
+
+
+async def notify_callback(update, context):
+    _notify_id = _parse_notify_callback_data(update.callback_query.data)
+    with make_session() as session:
+        session.query(Notify).filter(Notify.id == _notify_id).filter().delete(synchronize_session='fetch')
+    await app.bot.send_message(update.callback_query.message.chat.id, 'удалила')
+
+
+app.add_handler(CallbackQueryHandler(notify_callback, '^notify.*'))
+
+
+async def del_notify(update, context):
+    with make_session() as session:
+        chat = query_chat(session, update.message.chat.id)
+        keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(notify.message,
+                                                       callback_data=_notify_callback_data(notify.id))]
+                                  for notify in chat.notifies if len(notify.message) > 0])
+
+        await update.message.reply_text('удалить уведомление', reply_markup=keyboard)
+
+
+app.add_handler(CommandHandler('del_notify', del_notify))
+
+
+async def notify(update, context):
+    _reply_message = None
+    with make_session() as session:
+        chat = query_chat(session, update.message.chat.id)
+        message = update.message.text.split(' ', 1)[1]
+
+        args = message.split(' ', 1)
+        delta = validate_delta(args[0])
+        if delta is None:
+            delta = datetime.timedelta()
+        else:
+            message = args[1]
+
+        args = message.split(' ', 1)
+        period = validate_period(args[0])
+        if period is None:
+            period = validate_period('24:0:0')
+        else:
+            message = args[1]
+
+        session.add(Notify(chat_id=update.message.chat.id, message=message, period=period, last_time=datetime.datetime.utcnow() + delta))
+        _reply_message = 'Добавила уведомление с сообщением "%s" раз в %s' % (message, format_period(period))
+
+    await update.message.reply_text(_reply_message)
+
+
+
+app.add_handler(CommandHandler('notify', notify))
 
 
 class ChatNotFound(Exception):
@@ -338,11 +400,18 @@ log.debug('starting polling')
 
 async def checker(_):
     print('checking chats', file=sys.stderr)
-    notifies = {}
+    notifies = defaultdict(lambda: [])
     now = datetime.datetime.utcnow()
+    _notified = set()
+
     with make_session() as session:
         chats = session.query(Chat)
         for chat in chats:
+            for notify in chat.notifies:
+                if now > notify.last_time + notify.period_time():
+                    notifies[chat.id].append(notify.message)
+                    _notified.add(notify.id)
+
             if chat.period is not None:
                 try:
                     print(chat, file=sys.stderr)
@@ -356,14 +425,21 @@ async def checker(_):
                             continue
                         delta = now - meal.time
                         ratio = int(delta / datetime.timedelta(seconds=chat.period))
-                        notifies[chat.id] = 'Пора кормить ребенка! Прошло больше %d периодов кормления!' % (ratio,)
+                        notifies[chat.id].append('Пора кормить ребенка! Прошло больше %d периодов кормления!' % (ratio,))
                         _muted_chats[chat.id] = now + datetime.timedelta(minutes=10)
                 except Exception as e:
                     print(e, file=sys.stderr)
 
     for key, value in notifies.items():
-        print(key, value, file=sys.stderr)
-        await app.bot.send_message(key, value)
+        for msg in value:
+            print(key, msg, file=sys.stderr)
+            await app.bot.send_message(key, msg)
+
+    if _notified:
+        print('notified ids', _notified, file=sys.stderr)
+        with make_session() as session:
+            notify = session.execute(sqlalchemy.update(Notify).filter(Notify.id in _notified).values({'last_time': now}))
+
 
 app.job_queue.run_repeating(checker, 60)
 

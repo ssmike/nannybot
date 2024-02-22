@@ -448,7 +448,7 @@ async def checker(_):
     if _notified:
         print('notified ids', _notified, file=sys.stderr)
         with make_session() as session:
-            notify = session.execute(sqlalchemy.update(Notify).filter(Notify.id in _notified).values({'last_time': now}))
+            notify = session.execute(sqlalchemy.update(Notify).filter(Notify.id.in_(_notified)).values({'last_time': now}))
 
 
 app.job_queue.run_repeating(checker, 60)
